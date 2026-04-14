@@ -1,11 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import axios from 'axios';
 import Link from 'next/link';
 
 export default function SimpleForm() {
-    const { register, handleSubmit, control, formState: { errors } } = useForm({
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [statusMessage, setStatusMessage] = useState(null);
+
+    const { register, handleSubmit, control, formState: { errors }, reset } = useForm({
         defaultValues: {
             companies: [
                 { email: '', subject: '', message: '', name: '', isCompanyName: false, resume: null , jobDescription: '' }
@@ -19,18 +23,22 @@ export default function SimpleForm() {
         name: 'companies'
     });
 
-    const onSubmit = (data) => {
+    const onSubmit = async (data) => {
+        setStatusMessage(null);
+        setIsSubmitting(true);
+        const startTime = Date.now();
         const commonResumeFile = data.commonResume && data.commonResume[0] ? data.commonResume[0] : null;
 
         const formattedData = {
             senderEmail: data.senderEmail,
             senderPassword: data.senderPassword,
+            resume: commonResumeFile,
             // Keep a top-level subject for compatibility; use first company's subject if available
             // subject: data.companies?.[0]?.subject || '',
             companies: data.companies.map((company) => {
                 const email = company.email;
                 const rawName = company.name && company.name.trim();
-
+//
                 let name = rawName;
                 if (!name && email) {
                     const nameMatch = email.split('@')[0].match(/^[a-zA-Z]+/);
@@ -48,26 +56,45 @@ export default function SimpleForm() {
                 const finalResumeFile = specificResumeFile || commonResumeFile;
 
                 return {
-                    subject: company.subject,
                     email: email,
-                    name: name,
-                    isCompanyName: !!company.isCompanyName,
-                    message: `${greetingPrefix}${company.message}`,
-                    resumeFileName: finalResumeFile ? finalResumeFile.name : null,
-                    usesCommonResume: !!(finalResumeFile && !specificResumeFile && commonResumeFile)
+                    subject: company.subject,
+                    message: company.message,
+                    // name: name,
+                    // isCompanyName: !!company.isCompanyName,
+                    // message: `${greetingPrefix}${company.message}`,
+                    // resumeFileName: finalResumeFile ? finalResumeFile.name : null,
+                    // usesCommonResume: !!(finalResumeFile && !specificResumeFile && commonResumeFile)
                 };
             })
         };
         console.log('Form Data:', formattedData);
-        axios.post('http://localhost:5000/send-email', formattedData)
-            .then((response) => {
-                console.log('Form submitted successfully:', response.data);
-                alert("Emails scheduled successfully!");
-            })
-            .catch((error) => {
-                console.error('Error submitting form:', error);
-                alert("Failed to send emails. Check console.");
+
+        try {
+            const response = await axios.post('https://yi-nonoofficial-uconcentrically.ngrok-free.dev/send-email', formattedData);
+            console.log('Form submitted successfully:', response.data);
+            setStatusMessage({ type: 'success', text: 'Emails scheduled successfully!' });
+            reset({
+                senderEmail: '',
+                senderPassword: '',
+                commonResume: null,
+                companies: [
+                    { email: '', subject: '', message: '', name: '', isCompanyName: false, resume: null, jobDescription: '' }
+                ]
             });
+        } catch (error) {
+            console.error('Error submitting form:', error);
+            setStatusMessage({ type: 'error', text: 'Failed to send emails. Please try again.' });
+        } finally {
+            const elapsed = Date.now() - startTime;
+            const minDuration = 1000; // minimum loading time in ms
+            const remaining = minDuration - elapsed;
+
+            if (remaining > 0) {
+                setTimeout(() => setIsSubmitting(false), remaining);
+            } else {
+                setIsSubmitting(false);
+            }
+        }
     };
 
     const isValidEmail = (email) => {
@@ -76,7 +103,7 @@ export default function SimpleForm() {
     };
 
     return (
-        <div className="w-full bg-white p-6 sm:p-10">
+        <div className="w-full bg-white p-6 sm:p-10 relative">
             <div className="mb-8">
                 <h2 className="text-3xl font-black text-[#1E1E1E] tracking-tight">Email Automation</h2>
                 <p className="text-gray-500 text-sm mt-1 font-medium">Configure your outreach campaign</p>
@@ -166,7 +193,9 @@ export default function SimpleForm() {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
+
+                       {/* It can be used when we need to send the email with dynamic value (name )          */}
+                                {/* <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
                                         Name (Company / HR)
                                     </label>
@@ -176,9 +205,9 @@ export default function SimpleForm() {
                                         {...register(`companies.${index}.name`)}
                                         className="block w-full rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10"
                                     />
-                                </div>
+                                </div> */}
 
-                                <div className="flex items-center md:items-end gap-2 mt-2 md:mt-6">
+                                {/* <div className="flex items-center md:items-end gap-2 mt-2 md:mt-6">
                                     <input
                                         id={`companies-${index}-isCompanyName`}
                                         type="checkbox"
@@ -191,10 +220,13 @@ export default function SimpleForm() {
                                     >
                                         Is company name?
                                     </label>
-                                </div>
+                                </div> */}
                             </div>
 
-                            <div className="space-y-2">
+
+   {/* Specific resume upload for each company, if they want to override the common resume. This is optional. */}
+
+                            {/* <div className="space-y-2">
                                 <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
                                     Specific Resume (optional)
                                 </label>
@@ -207,7 +239,8 @@ export default function SimpleForm() {
                                 <p className="text-[10px] text-gray-500 ml-1 font-medium">
                                     By default this company will use the common resume. Upload a specific resume here only if you want to override it.
                                 </p>
-                            </div>
+                            </div> */}
+                            
 {/* Job description field is removed for now, but can be added back in the future if needed. We can also consider adding an AI generation feature for it later on. */}
                             {/* <div className="space-y-2">
                                 <div className="flex items-center justify-between">
@@ -302,13 +335,45 @@ export default function SimpleForm() {
                 </div>
 
                 {/* Submit Button */}
+                {statusMessage && (
+                    <p
+                        className={`text-xs font-bold mt-1 ml-1 ${
+                            statusMessage.type === 'success' ? 'text-emerald-600' : 'text-red-500'
+                        }`}
+                    >
+                        {statusMessage.text}
+                    </p>
+                )}
+
                 <button
                     type="submit"
-                    className="w-full rounded-2xl bg-[#FF7F11] px-6 py-4 text-sm font-black text-white hover:bg-[#1E1E1E] transition-all transform active:scale-[0.98] shadow-xl shadow-[#FF7F11]/20 hover:shadow-black/20 mt-4 uppercase tracking-widest"
+                    disabled={isSubmitting}
+                    className={`w-full rounded-2xl px-6 py-4 text-sm font-black text-white transition-all transform active:scale-[0.98] mt-4 uppercase tracking-widest shadow-xl shadow-[#FF7F11]/20 hover:shadow-black/20 ${
+                        isSubmitting
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-[#FF7F11] hover:bg-[#1E1E1E]'
+                    }`}
                 >
-                    Send Mails
+                    {isSubmitting ? 'Sending…' : 'Send Mails'}
                 </button>
             </form>
+
+            {isSubmitting && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl px-8 py-6 shadow-2xl border border-[#F6EFD4] max-w-xs w-full text-center">
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="relative w-12 h-12">
+                                <div className="absolute inset-0 rounded-full border-4 border-[#FF7F11]/30"></div>
+                                <div className="absolute inset-0 rounded-full border-4 border-t-[#FF7F11] border-transparent animate-spin"></div>
+                            </div>
+                        </div>
+                        <p className="text-sm font-black text-[#1E1E1E] mb-1">Scheduling your emails…</p>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                            This may take a few moments. You can relax while we carefully prepare and queue your messages.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
