@@ -1,28 +1,60 @@
 'use client';
 
-import { useForm, Controller } from 'react-hook-form';
-import { useState } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
 import axios from 'axios';
 import Link from 'next/link';
 
 export default function SimpleForm() {
-    const { register, handleSubmit, control, formState: { errors } } = useForm();
-    const [emailInput, setEmailInput] = useState('');
-    const [emailError, setEmailError] = useState('');
+    const { register, handleSubmit, control, formState: { errors } } = useForm({
+        defaultValues: {
+            companies: [
+                { email: '', subject: '', message: '', name: '', isCompanyName: false, resume: null , jobDescription: '' }
+            ],
+            commonResume: null
+        }
+    });
+
+    const { fields: companyFields, append: appendCompany, remove: removeCompany } = useFieldArray({
+        control,
+        name: 'companies'
+    });
 
     const onSubmit = (data) => {
+        const commonResumeFile = data.commonResume && data.commonResume[0] ? data.commonResume[0] : null;
+
         const formattedData = {
             senderEmail: data.senderEmail,
             senderPassword: data.senderPassword,
-            subject: data.subject,
-            companies: data.companies.map((email) => {
-                const nameMatch = email.split('@')[0].match(/^[a-zA-Z]+/);
-                const name = nameMatch ? nameMatch[0] : 'there';
+            // Keep a top-level subject for compatibility; use first company's subject if available
+            // subject: data.companies?.[0]?.subject || '',
+            companies: data.companies.map((company) => {
+                const email = company.email;
+                const rawName = company.name && company.name.trim();
+
+                let name = rawName;
+                if (!name && email) {
+                    const nameMatch = email.split('@')[0].match(/^[a-zA-Z]+/);
+                    name = nameMatch ? nameMatch[0] : '';
+                }
+                if (!name) {
+                    name = 'there';
+                }
+
+                const greetingPrefix = company.isCompanyName
+                    ? `Hi ${name} Hiring Team,\n\n`
+                    : `Hi ${name},\n\n`;
+
+                const specificResumeFile = company.resume && company.resume[0] ? company.resume[0] : null;
+                const finalResumeFile = specificResumeFile || commonResumeFile;
 
                 return {
-                    subject: data.subject,
+                    subject: company.subject,
                     email: email,
-                    message: `Hi ${name},\n\n${data.message}`
+                    name: name,
+                    isCompanyName: !!company.isCompanyName,
+                    message: `${greetingPrefix}${company.message}`,
+                    resumeFileName: finalResumeFile ? finalResumeFile.name : null,
+                    usesCommonResume: !!(finalResumeFile && !specificResumeFile && commonResumeFile)
                 };
             })
         };
@@ -41,48 +73,6 @@ export default function SimpleForm() {
     const isValidEmail = (email) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
-    };
-
-    const addEmail = (email, currentEmails, onChange) => {
-        const trimmedEmail = email.trim();
-        if (!trimmedEmail) return;
-        if (!isValidEmail(trimmedEmail)) {
-            setEmailError('Please enter a valid email address');
-            return;
-        }
-        if (currentEmails.includes(trimmedEmail)) {
-            setEmailError('This email has already been added');
-            return;
-        }
-        onChange([...currentEmails, trimmedEmail]);
-        setEmailInput('');
-        setEmailError('');
-    };
-
-    const removeEmail = (emailToRemove, currentEmails, onChange) => {
-        onChange(currentEmails.filter(email => email !== emailToRemove));
-    };
-
-    const handleKeyDown = (e, currentEmails, onChange) => {
-        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-            e.preventDefault();
-            addEmail(emailInput, currentEmails, onChange);
-        } else if (e.key === 'Backspace' && !emailInput && currentEmails.length > 0) {
-            onChange(currentEmails.slice(0, -1));
-            setEmailError('');
-        }
-    };
-
-    const handlePaste = (e, currentEmails, onChange) => {
-        e.preventDefault();
-        const pastedText = e.clipboardData.getData('text');
-        const emails = pastedText.split(/[\s,;]+/).filter(email => email.trim());
-        emails.forEach(email => addEmail(email, currentEmails, onChange));
-    };
-
-    const handleInputChange = (e) => {
-        setEmailInput(e.target.value);
-        if (emailError) setEmailError('');
     };
 
     return (
@@ -130,85 +120,186 @@ export default function SimpleForm() {
                     </div>
                 </div>
 
-                {/* Field 3: Subject */}
+                {/* Common Resume (applied to all companies by default) */}
                 <div className="space-y-2">
-                    <label htmlFor="subject" className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
-                        Subject
+                    <label htmlFor="commonResume" className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                        Common Resume
                     </label>
                     <input
-                        id="subject"
-                        type="text"
-                        placeholder="Application for [Job Title]"
-                        {...register('subject', { required: 'Subject is required' })}
-                        className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10"
+                        id="commonResume"
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        {...register('commonResume')}
+                        className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-2 text-xs font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-[#1E1E1E] file:text-white file:hover:bg-[#FF7F11]"
                     />
-                    {errors.subject && <p className="text-[10px] font-bold text-red-500 ml-1">{errors.subject.message}</p>}
+                    <p className="text-[10px] text-gray-500 ml-1 font-medium">
+                        This resume will be used for all companies by default. You can override it with a specific resume inside each company container.
+                    </p>
                 </div>
 
-                {/* Field 4: Message */}
-                <div className="space-y-2">
-                    <label htmlFor="message" className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
-                        Message Body
-                    </label>
-                    <textarea
-                        id="message"
-                        rows="4"
-                        placeholder=" I am writing to express my interest in the [Job Title] position at ..."
-                        {...register('message', { required: 'Message is required' })}
-                        className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10 resize-none"
-                    />
-                    {errors.message && <p className="text-[10px] font-bold text-red-500 ml-1">{errors.message.message}</p>}
-                </div>
+                {/* Company Containers */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                            Companies (Recipients)
+                        </label>
+                    </div>
 
-                {/* Field 5: Company Emails */}
-                <Controller
-                    name="companies"
-                    control={control}
-                    defaultValue={[]}
-                    rules={{
-                        validate: (value) => value.length > 0 || 'Please add at least one recipient'
-                    }}
-                    render={({ field: { onChange, value } }) => (
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
-                                Recipient List (Companies)
-                            </label>
-                            <div className={`min-h-[100px] flex flex-wrap gap-2 rounded-2xl border-2 p-4 transition-all bg-gray-50 ${emailError || errors.companies
-                                ? 'border-red-500 ring-4 ring-red-500/10'
-                                : 'border-gray-100 focus-within:border-[#FF7F11] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#FF7F11]/10'
-                                }`}>
-                                {value.map((email, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex items-center gap-2 rounded-xl bg-[#1E1E1E] px-3 py-1.5 text-xs font-bold text-white group"
+                    {companyFields.map((field, index) => (
+                        <div
+                            key={field.id}
+                            className="space-y-4 rounded-2xl border-2 border-gray-100 bg-gray-50 p-4 relative"
+                        >
+                            <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-black uppercase tracking-wider text-gray-500">
+                                    Company {index + 1}
+                                </p>
+                                {companyFields.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removeCompany(index)}
+                                        className="text-[10px] font-black text-red-500 uppercase tracking-tighter hover:underline"
                                     >
-                                        <span>{email}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeEmail(email, value, onChange)}
-                                            className="text-[#FF7F11] hover:text-white transition-colors"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                ))}
-                                <input
-                                    type="text"
-                                    value={emailInput}
-                                    onChange={handleInputChange}
-                                    onKeyDown={(e) => handleKeyDown(e, value, onChange)}
-                                    onPaste={(e) => handlePaste(e, value, onChange)}
-                                    placeholder={value.length === 0 ? "Enter company emails here..." : "Add more..."}
-                                    className="flex-1 min-w-[200px] border-none outline-none bg-transparent text-sm font-medium placeholder:text-gray-300"
-                                />
+                                        Remove
+                                    </button>
+                                )}
                             </div>
-                            {emailError && <p className="text-[10px] font-bold text-red-500 ml-1">{emailError}</p>}
-                            {errors.companies && <p className="text-[10px] font-bold text-red-500 ml-1">{errors.companies.message}</p>}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                                        Name (Company / HR)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Acme Corp / John Doe"
+                                        {...register(`companies.${index}.name`)}
+                                        className="block w-full rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10"
+                                    />
+                                </div>
+
+                                <div className="flex items-center md:items-end gap-2 mt-2 md:mt-6">
+                                    <input
+                                        id={`companies-${index}-isCompanyName`}
+                                        type="checkbox"
+                                        {...register(`companies.${index}.isCompanyName`)}
+                                        className="h-4 w-4 rounded border-gray-300 text-[#FF7F11] focus:ring-[#FF7F11]"
+                                    />
+                                    <label
+                                        htmlFor={`companies-${index}-isCompanyName`}
+                                        className="text-[11px] font-bold uppercase tracking-wider text-gray-500"
+                                    >
+                                        Is company name?
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                                    Specific Resume (optional)
+                                </label>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx"
+                                    {...register(`companies.${index}.resume`)}
+                                    className="block w-full rounded-2xl border-2 border-gray-100 bg-white px-4 py-2 text-xs font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-[#1E1E1E] file:text-white file:hover:bg-[#FF7F11]"
+                                />
+                                <p className="text-[10px] text-gray-500 ml-1 font-medium">
+                                    By default this company will use the common resume. Upload a specific resume here only if you want to override it.
+                                </p>
+                            </div>
+{/* Job description field is removed for now, but can be added back in the future if needed. We can also consider adding an AI generation feature for it later on. */}
+                            {/* <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                                        Job Description (for this company)
+                                    </label>
+                                    <button
+                                        type="button"
+                                        className="text-[10px] font-black text-[#FF7F11] uppercase tracking-tighter hover:underline"
+                                    >
+                                        Generate with AI
+                                    </button>
+                                </div>
+                                <textarea
+                                    rows="4"
+                                    placeholder="Paste the job description for this company here..."
+                                    {...register(`companies.${index}.jobDescription`)}
+                                    className="block w-full rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-xs font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10 resize-none"
+                                />
+                            </div> */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                                        Company Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        placeholder="company@example.com"
+                                        {...register(`companies.${index}.email`, {
+                                            required: 'Email is required',
+                                            validate: (value) => isValidEmail(value) || 'Please enter a valid email address'
+                                        })}
+                                        className="block w-full rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10"
+                                    />
+                                    {errors.companies?.[index]?.email && (
+                                        <p className="text-[10px] font-bold text-red-500 ml-1">
+                                            {errors.companies[index].email.message}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                                        Subject
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Application for [Job Title]"
+                                        {...register(`companies.${index}.subject`, {
+                                            required: 'Subject is required'
+                                        })}
+                                        className="block w-full rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10"
+                                    />
+                                    {errors.companies?.[index]?.subject && (
+                                        <p className="text-[10px] font-bold text-red-500 ml-1">
+                                            {errors.companies[index].subject.message}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
+                                    Message Body
+                                </label>
+                                <textarea
+                                    rows="4"
+                                    placeholder="I am writing to express my interest in the [Job Title] position at ..."
+                                    {...register(`companies.${index}.message`, {
+                                        required: 'Message is required'
+                                    })}
+                                    className="block w-full rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10 resize-none"
+                                />
+                                {errors.companies?.[index]?.message && (
+                                    <p className="text-[10px] font-bold text-red-500 ml-1">
+                                        {errors.companies[index].message.message}
+                                    </p>
+                                )}
+                            </div>
                         </div>
-                    )}
-                />
+                    ))}
+
+                    <div className="flex justify-end pt-2">
+                        <button
+                            type="button"
+                            onClick={() => appendCompany({ email: '', subject: '', message: '' })}
+                            className="text-[10px] font-black text-[#FF7F11] uppercase tracking-tighter hover:underline"
+                        >
+                            + Add Company
+                        </button>
+                    </div>
+                </div>
 
                 {/* Submit Button */}
                 <button

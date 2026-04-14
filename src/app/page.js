@@ -21,9 +21,6 @@ export default function Home() {
             <div className="hidden md:flex items-center gap-8">
               <Link href="/" className="text-sm font-semibold hover:text-[#FF7F11] transition-colors">Home</Link>
               <Link href="/guide" className="text-sm font-semibold hover:text-[#FF7F11] transition-colors">Guide</Link>
-              <button className="bg-[#1E1E1E] text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-[#FF7F11] transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-black/10">
-                Get Started
-              </button>
             </div>
           </div>
         </div>

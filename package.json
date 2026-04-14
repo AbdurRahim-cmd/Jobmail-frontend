@@ -10,6 +10,7 @@
     "clean": "rm -r -Force .next node_modules package-lock.json"
   },
   "dependencies": {
+    "@google/genai": "^1.50.0",
     "axios": "^1.13.4",
     "next": "16.1.6",
     "nodemailer": "^8.0.0",
