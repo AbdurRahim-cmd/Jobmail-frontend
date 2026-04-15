@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import MainNavbar from '../../components/MainNavbar';
+import MainFooter from '../../components/MainFooter';
 
 export default function GuidePage() {
     const [selectedImage, setSelectedImage] = useState(null);
@@ -9,7 +11,7 @@ export default function GuidePage() {
     const steps = [
         {
             id: "step-1",
-            title: "Step 1: 🔐 Enable 2-Step Verification",
+            title: "Step 1: Enable 2-Step Verification",
             badge: "Required",
             description: (
                 <div className="space-y-4">
@@ -43,7 +45,7 @@ export default function GuidePage() {
         },
         {
             id: "step-2",
-            title: "Step 2: 🔑 Generate an App Password",
+            title: "Step 2: Generate an App Password",
             badge: "Required",
             description: (
                 <div className="space-y-4">
@@ -62,7 +64,7 @@ export default function GuidePage() {
         },
         {
             id: "step-3",
-            title: "Step 3: 📝 Name & Generate",
+            title: "Step 3: Name & Generate",
             badge: "",
             description: (
                 <div className="space-y-4">
@@ -80,7 +82,7 @@ export default function GuidePage() {
         },
         {
             id: "step-4",
-            title: "Step 4: ✅ Copy Your Password",
+            title: "Step 4: Copy Your Password",
             badge: "Recomended",
             description: (
                 <div className="space-y-4">
@@ -93,7 +95,7 @@ export default function GuidePage() {
                     </ol>
                     <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-xl">
                         <p className="text-sm text-amber-900 font-bold">
-                            📌 Note: Keep this password handy—you’ll need it for the form. This is NOT your regular Gmail password.
+                          Note: Keep this password handy—you’ll need it for the form. This is NOT your regular Gmail password.
                         </p>
                     </div>
                 </div>
@@ -105,29 +107,7 @@ export default function GuidePage() {
 
     return (
         <div className="min-h-screen bg-[#FDF8E1] text-[#1E1E1E] font-sans">
-            {/* Navbar */}
-            <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-[#F6EFD4] shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between h-16 items-center">
-                        <div className="flex items-center gap-2">
-                            <Link href="/" className="flex items-center gap-2">
-                                <div className="bg-[#FF7F11] p-2 rounded-lg text-white">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <span className="text-2xl font-black text-[#1E1E1E]">Jobmail</span>
-                            </Link>
-                            <span className="text-gray-300 mx-2">|</span>
-                            <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Help Center</span>
-                        </div>
-                        <Link href="/" className="flex items-center text-[#FF7F11] hover:text-[#1E1E1E] font-black text-xs uppercase transition-colors">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                            Back to Form
-                        </Link>
-                    </div>
-                </div>
-            </nav>
+            <MainNavbar />
 
             <div className="max-w-4xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
                 <header className="text-center mb-16">
@@ -170,40 +150,46 @@ export default function GuidePage() {
 
                 <div className="bg-white shadow-2xl shadow-black/5 rounded-[3rem] overflow-hidden border border-[#F6EFD4]">
                     <div className="p-8 sm:p-12 space-y-24">
-                        {steps.map((step, index) => (
-                            <section key={step.id} className="relative">
-                                <div className="flex flex-col lg:flex-row gap-16 items-start">
-                                    <div className="flex-1 space-y-8">
-                                        <div className="flex items-center gap-4">
-                                            <div>
-                                                <h2 className="text-2xl font-black text-[#1E1E1E]">{step.title}</h2>
-                                                {step.badge && (
-                                                    <span className={`inline-block px-2 py-0.5 rounded mt-1 text-[10px] font-black uppercase ${step.badge === 'Required' ? 'bg-red-500 text-white' : 'bg-[#FF7F11] text-white'
-                                                        }`}>
-                                                        {step.badge}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="prose prose-slate max-w-none text-[#1E1E1E]">
-                                            {step.description}
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 w-full">
-                                        <div
-                                            className="relative aspect-video rounded-[2rem] overflow-hidden bg-gray-50 border-2 border-[#F6EFD4] flex items-center justify-center group hover:border-[#FF7F11] transition-all cursor-zoom-in shadow-inner"
-                                            onClick={() => setSelectedImage(step.image)}
+                        {steps.map((step) => (
+                            <section key={step.id} className="relative space-y-8">
+                                {/* Step title and badge row */}
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-2xl font-black text-[#1E1E1E]">{step.title}</h2>
+                                    {step.badge && (
+                                        <span
+                                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                                step.badge === 'Required'
+                                                    ? 'bg-red-500 text-white'
+                                                    : 'bg-[#FF7F11] text-white'
+                                            }`}
                                         >
-                                            <img
-                                                src={step.image}
-                                                alt={step.alt}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            />
-                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-[#1E1E1E]/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                                <div className="bg-white/90 text-[#1E1E1E] px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-xl tracking-widest">Click to enlarge</div>
+                                            {step.badge}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Centered image */}
+                                <div className="flex justify-center">
+                                    <div
+                                        className="relative aspect-video max-w-2xl w-full rounded-[2rem] overflow-hidden bg-gray-50 border-2 border-[#F6EFD4] flex items-center justify-center group hover:border-[#FF7F11] transition-all cursor-zoom-in shadow-inner"
+                                        onClick={() => setSelectedImage(step.image)}
+                                    >
+                                        <img
+                                            src={step.image}
+                                            alt={step.alt}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-[#1E1E1E]/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                            <div className="bg-white/90 text-[#1E1E1E] px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-xl tracking-widest">
+                                                Click to enlarge
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Step details */}
+                                <div className="prose prose-slate max-w-none text-[#1E1E1E]">
+                                    {step.description}
                                 </div>
                             </section>
                         ))}
@@ -249,6 +235,7 @@ export default function GuidePage() {
                     </div>
                 </div>
             )}
+            <MainFooter />
         </div>
     );
 }

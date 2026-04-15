@@ -181,7 +181,7 @@ export default function SimpleForm() {
             htmlFor="commonResume"
             className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1"
           >
-            Common Resume
+            Resume
           </label>
           <input
             id="commonResume"
@@ -190,10 +190,10 @@ export default function SimpleForm() {
             {...register("commonResume")}
             className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-2 text-xs font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-[#1E1E1E] file:text-white file:hover:bg-[#FF7F11]"
           />
-          <p className="text-[10px] text-gray-500 ml-1 font-medium">
+          {/* <p className="text-[10px] text-gray-500 ml-1 font-medium">
             This resume will be used for all companies by default. You can
             override it with a specific resume inside each company container.
-          </p>
+          </p> */}
         </div>
 
         {/* Company Containers */}
@@ -355,13 +355,13 @@ export default function SimpleForm() {
             </div>
           ))}
 
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-center pt-2">
             <button
               type="button"
               onClick={() =>
                 appendCompany({ email: "", subject: "", message: "" })
               }
-              className="text-[10px] font-black text-[#FF7F11] uppercase tracking-tighter hover:underline"
+              className="flex items-center justify-center w-40 h-16 border-2 border-dashed border-[#FF7F11] rounded-2xl text-[11px] font-black text-[#FF7F11] uppercase tracking-widest bg-white hover:bg-[#FFF3E6] transition-colors"
             >
               + Add Company
             </button>
