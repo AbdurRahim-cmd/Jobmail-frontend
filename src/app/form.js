@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import axios from "axios";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import Link from "next/link";
 export default function SimpleForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
+  const [dailyCount, setDailyCount] = useState(0);
+  const [submittingCompanyCount, setSubmittingCompanyCount] = useState(0);
 
   const {
     register,
@@ -41,8 +43,68 @@ export default function SimpleForm() {
     name: "companies",
   });
 
+  const dailyLimit = 20;
+  const maxCompanies = 10;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const raw = localStorage.getItem("jobmail-daily-usage");
+
+      if (!raw) {
+        const initial = { date: today, count: 0 };
+        localStorage.setItem("jobmail-daily-usage", JSON.stringify(initial));
+        setDailyCount(0);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      if (parsed && parsed.date === today && typeof parsed.count === "number") {
+        setDailyCount(parsed.count);
+      } else {
+        const reset = { date: today, count: 0 };
+        localStorage.setItem("jobmail-daily-usage", JSON.stringify(reset));
+        setDailyCount(0);
+      }
+    } catch (e) {
+      console.error("Failed to read daily usage from localStorage", e);
+      setDailyCount(0);
+    }
+  }, []);
+
+  const isDailyLimitReached = dailyCount >= dailyLimit;
+
   const onSubmit = async (data) => {
     setStatusMessage(null);
+
+    const emailsThisBatch = Array.isArray(data.companies)
+      ? data.companies.length
+      : 0;
+    const remainingToday = dailyLimit - dailyCount;
+
+    if (emailsThisBatch <= 0) {
+      setStatusMessage({
+        type: "error",
+        text: "Add at least one company before sending.",
+      });
+      return;
+    }
+
+    if (emailsThisBatch > remainingToday) {
+      setStatusMessage({
+        type: "error",
+        text:
+          remainingToday <= 0
+            ? `You have reached today's limit of ${dailyLimit} emails. Please try again tomorrow.`
+            : `You can send only ${remainingToday} more email(s) today (limit ${dailyLimit}).`,
+      });
+      return;
+    }
+
+    setSubmittingCompanyCount(emailsThisBatch);
     setIsSubmitting(true);
 
     try {
@@ -83,6 +145,24 @@ export default function SimpleForm() {
 
       console.log("Success:", response.data);
 
+      // Update daily usage counter in localStorage
+      const emailsSent = emailsThisBatch;
+      setDailyCount((prev) => {
+        const today = new Date().toISOString().slice(0, 10);
+        const updated = prev + emailsSent;
+        try {
+          if (typeof window !== "undefined") {
+            localStorage.setItem(
+              "jobmail-daily-usage",
+              JSON.stringify({ date: today, count: updated }),
+            );
+          }
+        } catch (e) {
+          console.error("Failed to write daily usage to localStorage", e);
+        }
+        return updated;
+      });
+
       setStatusMessage({
         type: "success",
         text: "Emails sent successfully!",
@@ -114,6 +194,10 @@ export default function SimpleForm() {
         </h2>
         <p className="text-gray-500 text-sm mt-1 font-medium">
           Configure your outreach campaign
+        </p>
+        <p className="mt-3 text-sm sm:text-base font-extrabold text-red-900 bg-red-200 border-2 border-red-600 rounded-xl px-4 py-3 shadow-lg shadow-red-500/30">
+          Caution: For account safety, do not send more than 20 emails per day
+          from one Gmail address.
         </p>
       </div>
 
@@ -175,7 +259,7 @@ export default function SimpleForm() {
           </div>
         </div>
 
-        {/* Common Resume (applied to all companies by default) */}
+        {/* Common Resume (now mandatory) */}
         <div className="space-y-2">
           <label
             htmlFor="commonResume"
@@ -187,13 +271,14 @@ export default function SimpleForm() {
             id="commonResume"
             type="file"
             accept=".pdf,.doc,.docx"
-            {...register("commonResume")}
+            {...register("commonResume", { required: "Resume is required" })}
             className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-2 text-xs font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-[#1E1E1E] file:text-white file:hover:bg-[#FF7F11]"
           />
-          {/* <p className="text-[10px] text-gray-500 ml-1 font-medium">
-            This resume will be used for all companies by default. You can
-            override it with a specific resume inside each company container.
-          </p> */}
+          {errors.commonResume && (
+            <p className="text-[10px] font-bold text-red-500 ml-1">
+              {errors.commonResume.message}
+            </p>
+          )}
         </div>
 
         {/* Company Containers */}
@@ -355,16 +440,28 @@ export default function SimpleForm() {
             </div>
           ))}
 
-          <div className="flex justify-center pt-2">
+          <div className="flex flex-col items-center pt-2 space-y-1">
             <button
               type="button"
-              onClick={() =>
-                appendCompany({ email: "", subject: "", message: "" })
-              }
-              className="flex items-center justify-center w-40 h-16 border-2 border-dashed border-[#FF7F11] rounded-2xl text-[11px] font-black text-[#FF7F11] uppercase tracking-widest bg-white hover:bg-[#FFF3E6] transition-colors"
+              disabled={companyFields.length >= maxCompanies}
+              onClick={() => {
+                if (companyFields.length < maxCompanies) {
+                  appendCompany({ email: "", subject: "", message: "" });
+                }
+              }}
+              className={`flex items-center justify-center w-40 h-16 border-2 border-dashed rounded-2xl text-[11px] font-black uppercase tracking-widest transition-colors ${
+                companyFields.length >= maxCompanies
+                  ? "border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed"
+                  : "border-[#FF7F11] text-[#FF7F11] bg-white hover:bg-[#FFF3E6]"
+              }`}
             >
-              + Add Company
+              {companyFields.length >= maxCompanies
+                ? "Limit Reached (10)"
+                : "+ Add Company"}
             </button>
+            {/* <p className="text-[10px] text-gray-400 font-medium">
+              You can add up to 10 companies per batch.
+            </p> */}
           </div>
         </div>
 
@@ -383,33 +480,44 @@ export default function SimpleForm() {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isDailyLimitReached}
           className={`w-full rounded-2xl px-6 py-4 text-sm font-black text-white transition-all transform active:scale-[0.98] mt-4 uppercase tracking-widest shadow-xl shadow-[#FF7F11]/20 hover:shadow-black/20 ${
-            isSubmitting
+            isSubmitting || isDailyLimitReached
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-[#FF7F11] hover:bg-[#1E1E1E]"
           }`}
         >
-          {isSubmitting ? "Sending…" : "Send Mails"}
+          {isSubmitting
+            ? "Sending…"
+            : isDailyLimitReached
+              ? `Daily limit reached (${dailyLimit})`
+              : "Send Mails"}
         </button>
       </form>
 
       {isSubmitting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl px-8 py-6 shadow-2xl border border-[#F6EFD4] max-w-xs w-full text-center">
+          <div className="bg-red-50 rounded-3xl px-8 py-6 shadow-2xl border border-red-200 max-w-xs w-full text-center">
             <div className="flex items-center justify-center mb-4">
               <div className="relative w-12 h-12">
-                <div className="absolute inset-0 rounded-full border-4 border-[#FF7F11]/30"></div>
-                <div className="absolute inset-0 rounded-full border-4 border-t-[#FF7F11] border-transparent animate-spin"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-red-300/50"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-t-red-600 border-transparent animate-spin"></div>
               </div>
             </div>
-            <p className="text-sm font-black text-[#1E1E1E] mb-1">
+            <p className="text-sm font-black text-red-800 mb-1">
               Scheduling your emails…
             </p>
-            <p className="text-xs text-gray-500 leading-relaxed">
+            <p className="text-xs text-red-700 leading-relaxed">
               This may take a few moments. You can relax while we carefully
               prepare and queue your messages.
             </p>
+            {submittingCompanyCount > 0 && (
+              <p className="text-[11px] text-red-700 leading-relaxed mt-2">
+                Estimated time: about {submittingCompanyCount * 2}–
+                {submittingCompanyCount * 3} seconds for {submittingCompanyCount}{" "}
+                {submittingCompanyCount === 1 ? "company" : "companies"}.
+              </p>
+            )}
           </div>
         </div>
       )}
