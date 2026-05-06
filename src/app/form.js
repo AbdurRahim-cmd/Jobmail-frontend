@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
-import axios from "axios";
 import Link from "next/link";
 
 export default function SimpleForm() {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [dailyCount, setDailyCount] = useState(0);
   const [submittingCompanyCount, setSubmittingCompanyCount] = useState(0);
+  const [authEmail, setAuthEmail] = useState("");
+  const [hasToken, setHasToken] = useState(false);
 
   const {
     register,
@@ -44,7 +46,7 @@ export default function SimpleForm() {
   });
 
   const dailyLimit = 20;
-  const maxCompanies = 10;
+  const maxCompanies = 20;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -75,10 +77,61 @@ export default function SimpleForm() {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    const tokenFromQuery = url.searchParams.get("token");
+    const emailFromQuery = url.searchParams.get("email");
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+    const tokenFromHash = hashParams.get("token");
+    const emailFromHash = hashParams.get("email");
+
+    const token = tokenFromQuery || tokenFromHash;
+    const email = emailFromQuery || emailFromHash;
+
+    if (token) {
+      sessionStorage.setItem("token", token);
+      setHasToken(true);
+      if (email) {
+        sessionStorage.setItem("authEmail", email);
+        setAuthEmail(email);
+      }
+
+      // Clean token/email from URL after storing.
+      url.searchParams.delete("token");
+      url.searchParams.delete("email");
+      url.hash = "";
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+
+      setStatusMessage({
+        type: "success",
+        text: "Gmail connected successfully.",
+      });
+      return;
+    }
+
+    const storedToken = sessionStorage.getItem("token");
+    const storedEmail = sessionStorage.getItem("authEmail");
+    setHasToken(Boolean(storedToken));
+    setAuthEmail(storedEmail || "");
+  }, []);
+
   const isDailyLimitReached = dailyCount >= dailyLimit;
 
   const onSubmit = async (data) => {
     setStatusMessage(null);
+
+    const token =
+      typeof window !== "undefined" ? sessionStorage.getItem("token") : null;
+
+    if (!token) {
+      setStatusMessage({
+        type: "error",
+        text: "Please connect Gmail first.",
+      });
+      return;
+    }
 
     const emailsThisBatch = Array.isArray(data.companies)
       ? data.companies.length
@@ -111,39 +164,32 @@ export default function SimpleForm() {
       const commonResumeFile =
         data.commonResume && data.commonResume[0] ? data.commonResume[0] : null;
 
-      // 🔥 Prepare companies (NO file here)
-      const companies = data.companies.map((company) => ({
-        email: company.email,
+      const emails = data.companies.map((company) => ({
+        to: company.email,
         subject: company.subject,
-        message: company.message,
+        body: company.message,
       }));
 
-      // 🔥 Create FormData
       const formData = new FormData();
 
-      formData.append("senderEmail", data.senderEmail);
-      formData.append("senderPassword", data.senderPassword);
-
-      // file
       if (commonResumeFile) {
         formData.append("resume", commonResumeFile);
       }
 
-      // IMPORTANT: stringify companies
-      formData.append("companies", JSON.stringify(companies));
+      formData.append("emails", JSON.stringify(emails));
 
-      // 🔥 API call
-      const response = await axios.post(
-        "http://localhost:5000/send-email",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+      const response = await fetch(`${API_URL}/mail/send`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: formData,
+      });
 
-      console.log("Success:", response.data);
+      const responseData = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(responseData.message || "Failed to send emails");
+      }
 
       // Update daily usage counter in localStorage
       const emailsSent = emailsThisBatch;
@@ -165,7 +211,7 @@ export default function SimpleForm() {
 
       setStatusMessage({
         type: "success",
-        text: "Emails sent successfully!",
+        text: responseData.message || "Emails sent successfully",
       });
 
       reset();
@@ -174,7 +220,7 @@ export default function SimpleForm() {
 
       setStatusMessage({
         type: "error",
-        text: "Failed to send emails",
+        text: error.message || "Failed to send emails",
       });
     } finally {
       setIsSubmitting(false);
@@ -184,6 +230,37 @@ export default function SimpleForm() {
   const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+  };
+
+  const handleGoogleClick = async () => {
+    setStatusMessage(null);
+    if (typeof window === "undefined") return;
+
+    try {
+      const response = await fetch(`${API_URL}/auth/google`);
+      const data = await response.json();
+      if (data.redirect) {
+        window.location.href = data.redirect;
+      }
+    } catch (error) {
+      console.error("Error initiating Google authentication:", error);
+      setStatusMessage({
+        type: "error",
+        text: "Failed to initiate Google authentication",
+      });
+    }
+  };
+
+  const handleDisconnect = () => {
+    if (typeof window === "undefined") return;
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("authEmail");
+    setHasToken(false);
+    setAuthEmail("");
+    setStatusMessage({
+      type: "success",
+      text: "Disconnected Gmail session on this browser.",
+    });
   };
 
   return (
@@ -202,60 +279,62 @@ export default function SimpleForm() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Field 1: Email */}
-          <div className="space-y-2">
-            <label
-              htmlFor="Email"
-              className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1"
-            >
-              Sender Email
-            </label>
-            <input
-              id="Email"
-              type="email"
-              placeholder="your.email@gmail.com"
-              {...register("senderEmail", { required: "Email is required" })}
-              className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10"
-            />
-            {errors.senderEmail && (
-              <p className="text-[10px] font-bold text-red-500 ml-1">
-                {errors.senderEmail.message}
-              </p>
+        <div className="space-y-3 rounded-2xl border-2 border-gray-100 bg-gray-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+              Gmail Connection
+            </p>
+            {hasToken && (
+              <button
+                type="button"
+                onClick={handleDisconnect}
+                className="text-[10px] font-black text-red-500 uppercase tracking-tighter hover:underline"
+              >
+                Disconnect
+              </button>
             )}
           </div>
 
-          {/* Field 2: Password */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center ml-1">
-              <label
-                htmlFor="Password"
-                className="text-xs font-bold uppercase tracking-wider text-gray-400"
-              >
-                App Password
-              </label>
-              <Link
-                href="/guide"
-                target="_blank"
-                className="text-[10px] font-black text-[#FF7F11] uppercase tracking-tighter hover:underline"
-              >
-                How to get this ?
-              </Link>
-            </div>
-            <input
-              id="Password"
-              type="password"
-              placeholder="•••• •••• •••• ••••"
-              {...register("senderPassword", {
-                required: "Password is required",
-              })}
-              className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3 text-sm font-medium transition-all focus:border-[#FF7F11] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/10"
-            />
-            {errors.senderPassword && (
-              <p className="text-[10px] font-bold text-red-500 ml-1">
-                {errors.senderPassword.message}
-              </p>
-            )}
+          <button
+            type="button"
+            onClick={handleGoogleClick}
+            aria-label="Continue with Google"
+            className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-[#1E1E1E] shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-[#FF7F11]/20"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="#4285F4" d="M17.64 9.2045c0-.6382-.0573-1.2518-.1636-1.8409H9v3.4818h4.8436a4.1402 4.1402 0 0 1-1.7972 2.7164v2.2582h2.9089c1.7026-1.5673 2.6847-3.8764 2.6847-6.6155z" />
+              <path fill="#34A853" d="M9 18c2.43 0 4.4673-.8064 5.9564-2.1791l-2.9089-2.2582c-.8064.54-1.8368.8591-3.0475.8591-2.3433 0-4.3275-1.5827-5.0351-3.7109H.9573v2.332c1.481 2.9418 4.5273 4.9571 8.0427 4.9571z" />
+              <path fill="#FBBC05" d="M3.9649 10.7109A5.4097 5.4097 0 0 1 3.6832 9c0-.5932.1019-1.1709.2817-1.7109v-2.332H.9573A8.9957 8.9957 0 0 0 0 9c0 1.4523.3482 2.8273.9573 4.0438l3.0076-2.3329z" />
+              <path fill="#EA4335" d="M9 3.5782c1.3214 0 2.5078.4541 3.4405 1.3459l2.5805-2.5805C13.4636.8918 11.4264 0 9 0 5.4846 0 2.4382 2.0155.9573 4.9573l3.0076 2.332c.7077-2.1282 2.6918-3.7109 5.0351-3.7109z" />
+            </svg>
+            Continue with Google
+          </button>
+
+          <p
+            className={`text-xs font-semibold rounded-xl px-3 py-2 border ${
+              hasToken
+                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                : "text-amber-800 bg-amber-50 border-amber-200"
+            }`}
+          >
+            {hasToken
+              ? `Connected${authEmail ? ` as ${authEmail}` : ""}`
+              : "Not connected. Connect Gmail before sending."}
+          </p>
+
+          <p className="text-[11px] text-gray-500 ml-1 font-medium">
+            You no longer need an app password. Authentication is handled via
+            Google OAuth.
+          </p>
+
+          <div className="ml-1">
+            <Link
+              href="/guide"
+              target="_blank"
+              className="text-[10px] font-black text-[#FF7F11] uppercase tracking-tighter hover:underline"
+            >
+              Need help with setup?
+            </Link>
           </div>
         </div>
 
@@ -480,9 +559,9 @@ export default function SimpleForm() {
 
         <button
           type="submit"
-          disabled={isSubmitting || isDailyLimitReached}
+          disabled={isSubmitting || isDailyLimitReached || !hasToken}
           className={`w-full rounded-2xl px-6 py-4 text-sm font-black text-white transition-all transform active:scale-[0.98] mt-4 uppercase tracking-widest shadow-xl shadow-[#FF7F11]/20 hover:shadow-black/20 ${
-            isSubmitting || isDailyLimitReached
+            isSubmitting || isDailyLimitReached || !hasToken
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-[#FF7F11] hover:bg-[#1E1E1E]"
           }`}
@@ -491,6 +570,8 @@ export default function SimpleForm() {
             ? "Sending…"
             : isDailyLimitReached
               ? `Daily limit reached (${dailyLimit})`
+              : !hasToken
+                ? "Connect Gmail to Continue"
               : "Send Mails"}
         </button>
       </form>
