@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Logo from "../ui/Logo";
 
 export default function Footer() {
@@ -8,9 +9,8 @@ export default function Footer() {
           <Logo size="sm" />
 
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[#475569]">
-            <a href="#" className="hover:text-[#0F172A] transition-colors">Privacy</a>
-            <a href="#" className="hover:text-[#0F172A] transition-colors">Terms</a>
-            <a href="#" className="hover:text-[#0F172A] transition-colors">Contact</a>
+            <Link href="/privacy" className="hover:text-[#0F172A] transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-[#0F172A] transition-colors">Terms</Link>
           </nav>
 
           <p className="text-xs text-[#475569]">
