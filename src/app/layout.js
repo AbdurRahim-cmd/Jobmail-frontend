@@ -13,7 +13,7 @@ export const metadata = {
   description:
     "Connect Google, upload your resume, and send personalized outreach emails to companies. Built for job seekers.",
   verification: {
-    google: "mfla_NFw9sXmwVOGrsmpI6HiK25zsX2kVe28fg1WN1Y",
+    google: "uLo9pW9fef1aLoQFRRjFbJFMMg0fD2piEKWBeoJRT94",
   },
 };
 
