@@ -9,7 +9,7 @@ const poppins = Poppins({
 });
 
 export const metadata = {
-  title: "Jobmail — Send Personalized Job Emails In Minutes",
+  title: "Jobmail — Send Personalized Job Emails In Minutes ",
   description:
     "Connect Google, upload your resume, and send personalized outreach emails to companies. Built for job seekers.",
   verification: {
