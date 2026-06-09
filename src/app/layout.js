@@ -12,6 +12,9 @@ export const metadata = {
   title: "Jobmail — Send Personalized Job Emails In Minutes",
   description:
     "Connect Google, upload your resume, and send personalized outreach emails to companies. Built for job seekers.",
+  verification: {
+    google: "mfla_NFw9sXmwVOGrsmpI6HiK25zsX2kVe28fg1WN1Y",
+  },
 };
 
 export default function RootLayout({ children }) {
