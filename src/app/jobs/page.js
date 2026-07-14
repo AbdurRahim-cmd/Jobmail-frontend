@@ -1,3 +1,12 @@
+import { notFound } from "next/navigation";
+
+// Jobs page is disabled for now — route hidden and returns 404.
+// The original implementation is preserved (commented) below for later re-enabling.
+export default function JobsDashboardPage() {
+  notFound();
+}
+
+/*
 "use client";
 
 import { useMemo, useState } from "react";
@@ -135,3 +144,4 @@ export default function JobsDashboardPage() {
     </div>
   );
 }
+*/
