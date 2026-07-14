@@ -7,7 +7,7 @@ import Button from "../ui/Button";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/jobs", label: "Jobs" },
+  // { href: "/jobs", label: "Jobs" }, // Jobs page disabled for now
   { href: "/assistant", label: "AI Assistant" },
   { href: "/form", label: "Send Mail" },
 ];

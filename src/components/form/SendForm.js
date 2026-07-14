@@ -23,8 +23,24 @@ import CompanyCard from "./CompanyCard";
 const DAILY_LIMIT = 20;
 const MAX_COMPANIES = 20;
 const STORAGE_KEY = "jobmail-daily-usage";
+const DRAFT_KEY = "jobmail-form-draft";
 
 const EMPTY_COMPANY = { email: "", subject: "", message: "" };
+
+// True only when the current page load is a full browser reload/refresh.
+// Used so recipient fields survive navigating away (e.g. to copy a job
+// description) but reset to a fresh page on an actual reload.
+function isPageReload() {
+  if (typeof performance === "undefined") return false;
+  try {
+    const nav = performance.getEntriesByType("navigation")[0];
+    if (nav?.type) return nav.type === "reload";
+    // Fallback for older browsers.
+    return performance.navigation?.type === 1;
+  } catch {
+    return false;
+  }
+}
 
 function readDailyCount() {
   if (typeof window === "undefined") return 0;
@@ -67,6 +83,7 @@ export default function SendForm() {
     control,
     formState: { errors },
     reset,
+    watch,
   } = useForm({
     defaultValues: { companies: [EMPTY_COMPANY], commonResume: null },
   });
@@ -86,6 +103,41 @@ export default function SendForm() {
     setConnected(Boolean(getToken()));
     setAuthEmail(getAuthEmail());
   }, []);
+
+  // On a real page reload -> start fresh (drop any saved draft).
+  // Otherwise (navigating back after copying a job description) -> restore.
+  useEffect(() => {
+    if (isPageReload()) {
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch {}
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const companies = JSON.parse(raw);
+      if (Array.isArray(companies) && companies.length) {
+        reset({ companies, commonResume: null });
+      }
+    } catch {}
+  }, [reset]);
+
+  // Persist recipient fields (email, subject, message) as the user types so
+  // they survive leaving the page. The resume file cannot be serialized.
+  useEffect(() => {
+    const sub = watch((value) => {
+      try {
+        const companies = (value.companies || []).map((c) => ({
+          email: c?.email || "",
+          subject: c?.subject || "",
+          message: c?.message || "",
+        }));
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(companies));
+      } catch {}
+    });
+    return () => sub.unsubscribe();
+  }, [watch]);
 
   const handleDisconnect = useCallback(() => {
     clearSession();
@@ -149,6 +201,9 @@ export default function SendForm() {
       writeDailyCount(updated);
 
       setStatus({ tone: "success", text: body.message || "Emails Sent Successfully." });
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch {}
       reset({ companies: [EMPTY_COMPANY], commonResume: null });
     } catch (err) {
       setStatus({ tone: "error", text: err.message || "Failed To Send Emails." });
